@@ -1,0 +1,39 @@
+chains:
+  - name: sepolia
+    rpc_url: https://eth-sepolia.g.alchemy.com/v2/lC2HDPB2Vs7-p-UPkgKD-VqFulU5elyk
+    chain_id: 11155111
+    deploy_core: true
+  - name: arbitrumsepolia
+    rpc_url: https://arb-sepolia.g.alchemy.com/v2/lC2HDPB2Vs7-p-UPkgKD-VqFulU5elyk
+    chain_id: 421614
+    deploy_core: true
+
+agents:
+  deployer:
+    key: 0x0820e79cde729336c29c6d3f5102b522f625b4b1e5801f097848600a23e15cb2
+  relayer:
+    key: 0x0820e79cde729336c29c6d3f5102b522f625b4b1e5801f097848600a23e15cb2
+    allow_local_checkpoint_syncers: true
+  validators:
+    - chain: sepolia
+      signing_key: 0x0820e79cde729336c29c6d3f5102b522f625b4b1e5801f097848600a23e15cb2
+      checkpoint_syncer:
+        type: local
+        params:
+          path: /data/validator-checkpoints
+    - chain: arbitrumsepolia
+      signing_key: 0x0820e79cde729336c29c6d3f5102b522f625b4b1e5801f097848600a23e15cb2
+      checkpoint_syncer:
+        type: local
+        params:
+          path: /data/validator-checkpoints
+
+warp_routes: []
+
+send_test:
+  enabled: false
+
+global:
+  registry_mode: local
+  agent_image_tag: agents-v1.4.0
+  cli_version: latest
