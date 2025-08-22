@@ -7,50 +7,29 @@
 
 # Configuration modules
 constants_module = import_module("./modules/config/constants.star")
-get_constants = constants_module.get_constants
-
 parser_module = import_module("./modules/config/parser.star")
-parse_configuration = parser_module.parse_configuration
-parse_agent_config = parser_module.parse_agent_config
-parse_global_config = parser_module.parse_global_config
-parse_test_config = parser_module.parse_test_config
-
 validator_module = import_module("./modules/config/validator.star")
-validate_configuration = validator_module.validate_configuration
 
 # Contract deployment modules
 core_module = import_module("./modules/contracts/core.star")
-deploy_core_contracts = core_module.deploy_core_contracts
-
 warp_module = import_module("./modules/contracts/warp.star")
-deploy_warp_routes = warp_module.deploy_warp_routes
 
 # Infrastructure modules
 cli_module = import_module("./modules/infrastructure/cli.star")
-build_cli_service = cli_module.build_cli_service
-
 agents_module = import_module("./modules/infrastructure/agents.star")
-build_agent_config_service = agents_module.build_agent_config_service
-get_agent_image = agents_module.get_agent_image
 
 # Service modules
 validator_service = import_module("./modules/services/validator.star")
-deploy_validators = validator_service.deploy_validators
-
 relayer_service = import_module("./modules/services/relayer.star")
-build_relayer_service = relayer_service.build_relayer_service
 
 # Testing modules
 test_module = import_module("./modules/testing/send_test.star")
-run_send_test = test_module.run_send_test
 
 # Utility modules
 helpers_module = import_module("./modules/utils/helpers.star")
-create_persistent_directory = helpers_module.create_persistent_directory
-log_info = helpers_module.log_info
 
 # Get constants
-constants = get_constants()
+constants = constants_module.get_constants()
 
 # ============================================================================
 # MAIN ORCHESTRATION
@@ -76,12 +55,12 @@ def run(plan, args):
     plan.print("Phase 1: Parsing configuration")
     
     # Parse main configuration
-    config = parse_configuration(args)
+    config = parser_module.parse_configuration(args)
     
     # Parse sub-configurations
-    agent_config = parse_agent_config(config.agents)
-    global_settings = parse_global_config(config.global_config)
-    test_config = parse_test_config(config.send_test)
+    agent_config = parser_module.parse_agent_config(config.agents)
+    global_settings = parser_module.parse_global_config(config.global_config)
+    test_config = parser_module.parse_test_config(config.send_test)
     
     # ========================================
     # PHASE 2: Configuration Validation
@@ -90,7 +69,7 @@ def run(plan, args):
     plan.print("Phase 2: Validating configuration")
     
     # Validate entire configuration
-    validate_configuration(config)
+    validator_module.validate_configuration(config)
     
     # ========================================
     # PHASE 3: Infrastructure Setup
@@ -99,10 +78,10 @@ def run(plan, args):
     plan.print("Phase 3: Setting up infrastructure")
     
     # Create persistent directories
-    configs_dir = create_persistent_directory("configs")
+    configs_dir = helpers_module.create_persistent_directory("configs")
     
     # Build and deploy CLI service
-    relay_chains = build_cli_service(
+    relay_chains = cli_module.build_cli_service(
         plan,
         config.chains,
         global_settings,
@@ -116,14 +95,14 @@ def run(plan, args):
     plan.print("Phase 4: Deploying contracts")
     
     # Deploy core contracts if needed
-    deploy_core_contracts(
+    core_module.deploy_core_contracts(
         plan,
         config.chains,
         agent_config.deployer_key
     )
     
     # Deploy warp routes
-    deploy_warp_routes(plan, config.warp_routes)
+    warp_module.deploy_warp_routes(plan, config.warp_routes)
     
     # ========================================
     # PHASE 5: Agent Configuration
@@ -131,8 +110,8 @@ def run(plan, args):
     
     plan.print("Phase 5: Generating agent configuration")
     
-    # Build agent configuration generator
-    build_agent_config_service(plan, config.chains, configs_dir)
+    # Build and run agent configuration generator service
+    agents_module.build_agent_config_service(plan, config.chains, configs_dir)
     
     # ========================================
     # PHASE 6: Agent Services Deployment
@@ -141,11 +120,11 @@ def run(plan, args):
     plan.print("Phase 6: Deploying agent services")
     
     # Get agent Docker image
-    agent_image = get_agent_image(global_settings.agent_tag)
+    agent_image = agents_module.get_agent_image(global_settings.agent_tag)
     
     # Create a shared persistent checkpoints directory and deploy validators
-    checkpoints_dir = create_persistent_directory("validator-checkpoints")
-    deploy_validators(
+    checkpoints_dir = helpers_module.create_persistent_directory("validator-checkpoints")
+    validator_service.deploy_validators(
         plan,
         agent_config.validators,
         config.chains,
@@ -155,7 +134,7 @@ def run(plan, args):
     )
     
     # Deploy relayer
-    build_relayer_service(
+    relayer_service.build_relayer_service(
         plan,
         config.chains,
         relay_chains,
@@ -173,7 +152,7 @@ def run(plan, args):
     plan.print("Phase 7: Running tests")
     
     # Run send test if configured
-    run_send_test(plan, test_config, config.warp_routes)
+    test_module.run_send_test(plan, test_config, config.warp_routes)
     
     # ========================================
     # COMPLETION

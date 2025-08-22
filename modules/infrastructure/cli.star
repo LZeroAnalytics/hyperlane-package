@@ -38,8 +38,8 @@ def build_cli_service(plan, chains, global_settings, deployer_key):
         deployer_key
     )
     
-    # Build CLI Docker image
-    cli_image = build_cli_image()
+    # Use pre-built image instead of building
+    cli_image = constants.HYPERLANE_CLI_IMAGE
     
     # Create persistent configs directory
     configs_dir = create_persistent_directory("configs")
@@ -125,22 +125,6 @@ def build_cli_environment(chain_info, global_settings, deployer_key):
         "MAX_RETRY_ATTEMPTS": str(constants.MAX_RETRY_ATTEMPTS),
         "RETRY_DELAY": str(constants.RETRY_DELAY),
     }
-
-# ============================================================================
-# IMAGE BUILDING
-# ============================================================================
-
-def build_cli_image():
-    """
-    Build the CLI Docker image specification
-    
-    Returns:
-        ImageBuildSpec for CLI
-    """
-    return ImageBuildSpec(
-        image_name = constants.CLI_IMAGE_NAME,
-        build_context_dir = "../../src/deployments/hyperlane-deployer",
-    )
 
 # ============================================================================
 # CLI OPERATIONS

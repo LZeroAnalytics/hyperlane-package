@@ -2,9 +2,11 @@
 
 constants_module = import_module("../config/constants.star")
 get_constants = constants_module.get_constants
+DEFAULT_AGENT_TAG = "agents-v1.4.0"  # Fallback default
 
 helpers_module = import_module("../utils/helpers.star")
 log_info = helpers_module.log_info
+create_persistent_directory = helpers_module.create_persistent_directory
 
 constants = get_constants()
 
@@ -29,8 +31,8 @@ def build_agent_config_service(plan, chains, configs_dir):
     # Create template files
     files_artifact = create_config_templates(plan, yaml_content)
     
-    # Build agent config image
-    agent_cfg_image = build_agent_config_image()
+    # Use pre-built agent config image
+    agent_cfg_image = "agent-config-gen:latest"
     
     # Add the service to the plan
     plan.add_service(
@@ -48,6 +50,25 @@ def build_agent_config_service(plan, chains, configs_dir):
             cmd = ["/seed/args.yaml", "/configs/agent-config.json"],
         ),
     )
+
+def create_agent_config_artifacts(plan, chains):
+    """
+    Create agent configuration artifacts (no service needed, just files)
+    
+    Args:
+        plan: Kurtosis plan object
+        chains: List of chain configurations
+        
+    Returns:
+        Files artifact with agent configuration
+    """
+    # log_info("Creating agent configuration artifacts")
+    
+    # Generate YAML content for agent config
+    yaml_content = generate_chains_yaml(chains)
+    
+    # Create configuration files as artifacts
+    return create_config_templates(plan, yaml_content)
 
 # ============================================================================
 # CONFIGURATION GENERATION
@@ -104,22 +125,6 @@ def create_config_templates(plan, yaml_content):
         },
         name = "agent-config-seed",
         description = "Seed files for agent configuration generator",
-    )
-
-# ============================================================================
-# IMAGE BUILDING
-# ============================================================================
-
-def build_agent_config_image():
-    """
-    Build the agent config generator Docker image specification
-    
-    Returns:
-        ImageBuildSpec for agent config generator
-    """
-    return ImageBuildSpec(
-        image_name = constants.AGENT_CONFIG_IMAGE_NAME,
-        build_context_dir = "../../src/deployments/config-generator",
     )
 
 # ============================================================================

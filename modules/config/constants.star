@@ -22,9 +22,17 @@ RELAYER_DB_DIR = "/data/relayer-db"
 # IMAGE NAMES
 # ============================================================================
 
-CLI_IMAGE_NAME = "hyperlane-cli-img"
-AGENT_CONFIG_IMAGE_NAME = "agent-config-gen-img"
+# These images need to be pre-built and available
+# For now, we'll use the agent image which has the necessary tools
+CLI_IMAGE_NAME = "hyperlane-cli-img"  # Legacy - kept for compatibility
+AGENT_CONFIG_IMAGE_NAME = "agent-config-gen-img"  # Legacy - kept for compatibility
 AGENT_IMAGE_BASE = "gcr.io/abacus-labs-dev/hyperlane-agent"
+
+# Pre-built images to use (avoiding image building in Kubernetes)
+# The CLI image needs to be built locally with the deployment scripts
+HYPERLANE_CLI_IMAGE = "hyperlane-cli:latest"
+# Config generator not needed anymore - we just create artifacts directly
+# AGENT_CONFIG_GEN_IMAGE = "agent-config-gen:latest"  # Removed - not needed
 
 # ============================================================================
 # SCRIPT PATHS
@@ -99,6 +107,7 @@ def get_constants():
         CLI_IMAGE_NAME = CLI_IMAGE_NAME,
         AGENT_CONFIG_IMAGE_NAME = AGENT_CONFIG_IMAGE_NAME,
         AGENT_IMAGE_BASE = AGENT_IMAGE_BASE,
+        HYPERLANE_CLI_IMAGE = HYPERLANE_CLI_IMAGE,
         
         # Scripts
         DEPLOY_CORE_SCRIPT = DEPLOY_CORE_SCRIPT,
