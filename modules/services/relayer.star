@@ -94,54 +94,45 @@ def build_relayer_command(chains, relay_chains, relayer_key, allow_local_sync):
         constants.VALIDATOR_CHECKPOINTS_DIR
     )
     
-    # Build base relayer command
-    relayer_cmd = build_base_relayer_command(relay_chains, relayer_key)
+    # Validate config before starting
+    validate_cmd = "if [ ! -f /configs/agent-config.json ]; then echo 'ERROR: Agent config not found at /configs/agent-config.json'; exit 1; fi; if ! grep -q '\"mailbox\".*\"0x[a-fA-F0-9]' /configs/agent-config.json; then echo 'ERROR: No valid mailbox addresses found in agent config'; cat /configs/agent-config.json; exit 1; fi; echo 'Starting relayer with config:'; grep -E '\"mailbox\"|\"url\"' /configs/agent-config.json | head -10"
     
-    # Add chain RPC URLs
-    relayer_cmd = add_chain_rpcs(relayer_cmd, chains)
+    # Build the complete command with address extraction and relayer execution in one shell
+    full_cmd = build_full_relayer_command(chains, relay_chains, relayer_key, allow_local_sync)
+    
+    # Combine all commands - execute directly
+    return "{} && {} && {}".format(mkdir_cmd, validate_cmd, full_cmd)
+
+def build_full_relayer_command(chains, relay_chains, relayer_key, allow_local_sync):
+    """
+    Build the full relayer command using config file directly
+    
+    Args:
+        chains: List of chain configurations
+        relay_chains: Comma-separated list of chain names
+        relayer_key: Relayer private key
+        allow_local_sync: Whether to allow local checkpoint syncers
+        
+    Returns:
+        Complete relayer command
+    """
+    # Use the agent config file directly
+    cmd = "/app/relayer"
+    cmd += " --relayChains {}".format(relay_chains)
+    cmd += " --defaultSigner.key {}".format(relayer_key)
+    cmd += " --db {}".format(constants.RELAYER_DB_DIR)
+    cmd += " --config /configs/agent-config.json"
+    
+    # The ISM configuration will be read from the deployed contracts
+    # No need to override ISM type - it will use what was deployed
     
     # Add local sync option if enabled
     if allow_local_sync:
-        relayer_cmd += " --allowLocalCheckpointSyncers true"
+        cmd += " --allowLocalCheckpointSyncers true"
     
-    # Combine all commands
-    return "{} && {}".format(mkdir_cmd, relayer_cmd)
+    return cmd
 
-def build_base_relayer_command(relay_chains, relayer_key):
-    """
-    Build the base relayer command
-    
-    Args:
-        relay_chains: Comma-separated list of chain names
-        relayer_key: Relayer private key
-        
-    Returns:
-        Base relayer command string
-    """
-    return "/app/relayer --relayChains {} --defaultSigner.key {} --db {}".format(
-        relay_chains,
-        relayer_key,
-        constants.RELAYER_DB_DIR
-    )
-
-def add_chain_rpcs(command, chains):
-    """
-    Add chain RPC URLs to the relayer command
-    
-    Args:
-        command: Base command string
-        chains: List of chain configurations
-        
-    Returns:
-        Command with RPC URLs added
-    """
-    for chain in chains:
-        command += " --chains.{}.connection.url {}".format(
-            getattr(chain, "name", ""),
-            getattr(chain, "rpc_url", "")
-        )
-    
-    return command
+# This function is no longer needed, replaced by build_full_relayer_command
 
 # ============================================================================
 # HEALTH CHECKS

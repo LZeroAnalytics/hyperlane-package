@@ -1,7 +1,17 @@
 FROM node:20-bullseye
 
+# Install foundry (cast, forge, anvil)
+RUN apt-get update && apt-get install -y curl git && \
+    curl -L https://foundry.paradigm.xyz | bash && \
+    export PATH="/root/.foundry/bin:$PATH" && \
+    /root/.foundry/bin/foundryup && \
+    ln -s /root/.foundry/bin/cast /usr/local/bin/cast && \
+    ln -s /root/.foundry/bin/forge /usr/local/bin/forge && \
+    ln -s /root/.foundry/bin/anvil /usr/local/bin/anvil && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Install Hyperlane CLI
-ARG CLI_VERSION=latest
+ARG CLI_VERSION=16.2.0
 RUN npm i -g @hyperlane-xyz/cli@${CLI_VERSION}
 
 # Setup Node modules for scripts

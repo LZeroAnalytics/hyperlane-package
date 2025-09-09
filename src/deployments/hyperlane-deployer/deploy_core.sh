@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 # Deploy Hyperlane core contracts to specified chains
 
-# Source common utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/common.sh"
+# Source common utilities - use absolute path in container
+if [ -f "/usr/local/bin/common.sh" ]; then
+    source "/usr/local/bin/common.sh"
+elif [ -f "../../utils/shell/common.sh" ]; then
+    # Fallback for local development
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${SCRIPT_DIR}/../../utils/shell/common.sh"
+else
+    echo "ERROR: Could not find common.sh"
+    exit 1
+fi
 
 # ============================================================================
 # MAIN DEPLOYMENT LOGIC
@@ -41,6 +49,8 @@ deploy_core_to_chain() {
         copy_deployment_artifacts "$chain_name" "$reg_chain_dir"
         create_stamp_file "$stamp_file"
         log_info "Successfully deployed core contracts to ${chain_name}"
+        # Display the deployed contract addresses
+        display_deployed_addresses "$chain_name"
     else
         log_error "Failed to deploy core contracts to ${chain_name}"
         exit $ERROR_DEPLOYMENT_FAILED
@@ -73,22 +83,67 @@ initialize_core_config() {
     local config_file="$1"
 
     # Reuse existing init output if present to avoid redundant work
-    if [ -f "./configs/core-config.yaml" ]; then
-        log_debug "Reusing existing core-config.yaml"
-        cp "./configs/core-config.yaml" "$config_file"
+    if [ -f "$config_file" ]; then
+        log_debug "Reusing existing ${config_file}"
         return 0
     fi
 
     log_info "Initializing core config"
     
-    # Use yes to provide empty responses to prompts
-    yes "" | hyperlane core init -y > /dev/null 2>&1 || true
+    # Try to run hyperlane core init with proper flags
+    # Use -o to specify output location, --registry to use local registry
+    # Provide empty input for owner address prompt (will use default from key)
+    if echo "" | hyperlane core init -y -o "$config_file" --registry /configs/registry 2>&1 | grep -v "TypeError: fetch failed" > /dev/null; then
+        if [ -f "$config_file" ]; then
+            log_info "Successfully created core config with hyperlane core init"
+            return 0
+        fi
+    fi
     
-    if [ -f "./configs/core-config.yaml" ]; then
-        cp "./configs/core-config.yaml" "$config_file"
+    # Fallback: Create a valid core config manually
+    log_info "Creating default core config (init command failed or timed out)"
+    
+    # Get the deployer address from the HYP_KEY
+    # Using cast to derive address from private key
+    local DEPLOYER_ADDRESS=""
+    if [ -n "$HYP_KEY" ]; then
+        DEPLOYER_ADDRESS=$(cast wallet address "$HYP_KEY" 2>/dev/null || echo "")
+        log_info "Derived deployer address: $DEPLOYER_ADDRESS"
+    fi
+    
+    # Use default address if derivation failed
+    if [ -z "$DEPLOYER_ADDRESS" ]; then
+        DEPLOYER_ADDRESS="0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538"
+        log_info "Using default deployer address: $DEPLOYER_ADDRESS"
+    fi
+    
+    # Create a minimal but valid core config
+    # Using the deployer address for the trustedRelayerIsm
+    cat > "$config_file" <<EOF
+{
+  "owner": "${DEPLOYER_ADDRESS}",
+  "defaultIsm": {
+    "type": "trustedRelayerIsm",
+    "relayer": "${DEPLOYER_ADDRESS}"
+  },
+  "defaultHook": {
+    "type": "merkleTreeHook"
+  },
+  "requiredHook": {
+    "type": "protocolFee",
+    "owner": "${DEPLOYER_ADDRESS}",
+    "beneficiary": "${DEPLOYER_ADDRESS}",
+    "maxProtocolFee": "100000000000000000",
+    "protocolFee": "0"
+  }
+}
+EOF
+    
+    if [ -f "$config_file" ]; then
+        log_debug "Created fallback core config"
         return 0
     else
-        log_error "Core init did not produce expected config file"
+        log_error "Failed to create core config file"
         return 1
     fi
 }
@@ -108,14 +163,22 @@ deploy_core_with_retry() {
     while [ $attempt -lt $MAX_RETRY_ATTEMPTS ]; do
         attempt=$((attempt + 1))
         
+        if [ $attempt -gt 1 ]; then
+            log_info "🔄 Deployment attempt $attempt/$MAX_RETRY_ATTEMPTS for ${chain_name}..."
+        fi
+        
         if eval "$deploy_cmd"; then
+            if [ $attempt -gt 1 ]; then
+                log_info "✅ Deployment succeeded on attempt $attempt for ${chain_name}"
+            fi
             return 0
         fi
         
         # Check for nonce errors
         if grep -q "nonce has already been used\|nonce too low" "$log_file"; then
             if [ $attempt -lt $MAX_RETRY_ATTEMPTS ]; then
-                log_info "Nonce error detected, retrying (attempt $attempt/$MAX_RETRY_ATTEMPTS)..."
+                log_info "⚠️  Nonce error detected on ${chain_name}, this may indicate contracts are already deployed"
+                log_info "🔄 Retrying deployment (attempt $attempt/$MAX_RETRY_ATTEMPTS)..."
                 sleep $RETRY_DELAY
             fi
         else
@@ -129,6 +192,41 @@ deploy_core_with_retry() {
     return 1
 }
 
+extract_ism_address() {
+    local chain_name="$1"
+    local target_dir="$2"
+    local addresses_file="${target_dir}/addresses.yaml"
+    
+    # Get mailbox address
+    local mailbox_addr=$(grep "^mailbox:" "$addresses_file" | cut -d' ' -f2 | tr -d '"')
+    
+    if [ -n "$mailbox_addr" ]; then
+        # Get chain RPC URL
+        local rpc_url=""
+        for chain in $CHAINS; do
+            if [ "$chain" = "$chain_name" ]; then
+                rpc_url="${RPCS[$chain]}"
+                break
+            fi
+        done
+        
+        if [ -n "$rpc_url" ]; then
+            # Query defaultIsm from mailbox contract using cast
+            local ism_addr=$(cast call "$mailbox_addr" "defaultIsm()(address)" --rpc-url "$rpc_url" 2>/dev/null || echo "")
+            
+            if [ -n "$ism_addr" ] && [ "$ism_addr" != "" ]; then
+                log_debug "Found ISM address for ${chain_name}: ${ism_addr}"
+                
+                # Append ISM address to addresses.yaml
+                echo "defaultIsm: \"${ism_addr}\"" >> "$addresses_file"
+                log_info "Added ISM address to ${chain_name} registry"
+            else
+                log_debug "Could not extract ISM address for ${chain_name}"
+            fi
+        fi
+    fi
+}
+
 copy_deployment_artifacts() {
     local chain_name="$1"
     local target_dir="$2"
@@ -137,6 +235,28 @@ copy_deployment_artifacts() {
     if [ -f "$addresses_file" ]; then
         cp "$addresses_file" "${target_dir}/addresses.yaml" || true
         log_debug "Copied deployment artifacts for ${chain_name}"
+        
+        # Extract and add ISM address from mailbox contract
+        extract_ism_address "$chain_name" "$target_dir"
+    fi
+}
+
+display_deployed_addresses() {
+    local chain_name="$1"
+    local registry_file="${REGISTRY_DIR}/chains/${chain_name}/addresses.yaml"
+    
+    if [ -f "$registry_file" ]; then
+        log_info "✅ Core contract deployments complete for ${chain_name}:"
+        echo ""
+        # Display the addresses with proper formatting
+        while IFS=': ' read -r key value; do
+            if [ -n "$key" ] && [ -n "$value" ]; then
+                echo "    $key: $value"
+            fi
+        done < "$registry_file"
+        echo ""
+    else
+        log_warn "Could not find deployed addresses for ${chain_name}"
     fi
 }
 

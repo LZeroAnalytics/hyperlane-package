@@ -113,6 +113,35 @@ def run(plan, args):
     # Build and run agent configuration generator service
     agents_module.build_agent_config_service(plan, config.chains, configs_dir)
     
+    # Verify agent configuration has correct addresses
+    plan.exec(
+        service_name = "hyperlane-cli",
+        recipe = ExecRecipe(
+            command = ["sh", "-c", """
+                echo "Verifying agent configuration..."
+                
+                # Wait for agent-config.json to be created
+                max_wait=30
+                elapsed=0
+                while [ ! -f /configs/agent-config.json ] && [ $elapsed -lt $max_wait ]; do
+                    echo "Waiting for agent config to be generated..."
+                    sleep 2
+                    elapsed=$((elapsed + 2))
+                done
+                
+                if [ -f /configs/agent-config.json ]; then
+                    echo "Agent config generated successfully"
+                    # Extract and display mailbox addresses for verification
+                    echo "Configured mailbox addresses:"
+                    cat /configs/agent-config.json | grep -A2 -B2 "mailbox" | head -20
+                else
+                    echo "ERROR: Agent config was not generated!"
+                    exit 1
+                fi
+            """],
+        ),
+    )
+    
     # ========================================
     # PHASE 6: Agent Services Deployment
     # ========================================

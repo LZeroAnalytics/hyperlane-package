@@ -162,10 +162,14 @@ function readCoreAddresses(chainName) {
     addresses.mailbox = yamlData.mailbox || '';
     addresses.igp = yamlData.interchainGasPaymaster || '';
     addresses.validatorAnnounce = yamlData.validatorAnnounce || '';
-    addresses.ism = yamlData.interchainSecurityModule || '';
+    // Check for ISM in multiple possible fields
+    addresses.ism = yamlData.defaultIsm || yamlData.interchainSecurityModule || yamlData.ism || '';
     
     if (addresses.mailbox) {
       logger.debug(`Found addresses for ${chainName} in YAML format`);
+      if (addresses.ism) {
+        logger.debug(`Found ISM address for ${chainName}: ${addresses.ism}`);
+      }
       return addresses;
     }
   }
@@ -257,14 +261,24 @@ async function buildChainConfig(chain) {
  */
 async function buildAgentConfig(args) {
   const chains = args.chains || [];
-  const config = { chains: {} };
+  const config = { 
+    chains: {},
+    defaultism: {}
+  };
 
   logger.info(`Building agent config for ${chains.length} chains`);
 
   // Process each chain
   for (const chain of chains) {
     logger.debug(`Processing chain: ${chain.name}`);
-    config.chains[chain.name] = await buildChainConfig(chain);
+    const chainConfig = await buildChainConfig(chain);
+    config.chains[chain.name] = chainConfig;
+    
+    // Add ISM to defaultism configuration for relayer
+    if (chainConfig.ism) {
+      config.defaultism[chain.name] = chainConfig.ism;
+      logger.debug(`Added ISM for ${chain.name} to defaultism config: ${chainConfig.ism}`);
+    }
   }
 
   return config;

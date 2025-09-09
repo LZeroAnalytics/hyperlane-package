@@ -25,6 +25,41 @@ def build_agent_config_service(plan, chains, configs_dir):
     """
     # log_info("Setting up agent configuration generator")
     
+    # First ensure addresses are available for chains that need them
+    chains_needing_addresses = []
+    for chain in chains:
+        if getattr(chain, "deploy_core", False):
+            chains_needing_addresses.append(getattr(chain, "name", ""))
+    
+    if len(chains_needing_addresses) > 0:
+        # Wait for addresses to be available
+        plan.exec(
+            service_name = "hyperlane-cli",
+            recipe = ExecRecipe(
+                command = ["sh", "-c", """
+                    echo "Checking for deployed addresses before generating agent config..."
+                    chains_to_check='%s'
+                    all_found=true
+                    
+                    for chain in $chains_to_check; do
+                        addr_file="/configs/registry/chains/$chain/addresses.yaml"
+                        if [ ! -f "$addr_file" ]; then
+                            echo "WARNING: Addresses not found for $chain at $addr_file"
+                            all_found=false
+                        else
+                            echo "Found addresses for $chain"
+                            # Show mailbox address for verification
+                            grep "^mailbox:" "$addr_file" || true
+                        fi
+                    done
+                    
+                    if [ "$all_found" = "false" ]; then
+                        echo "WARNING: Some addresses are missing, config may use defaults"
+                    fi
+                """ % " ".join(chains_needing_addresses)],
+            ),
+        )
+    
     # Generate YAML content for agent config
     yaml_content = generate_chains_yaml(chains)
     

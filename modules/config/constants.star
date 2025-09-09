@@ -30,7 +30,7 @@ AGENT_IMAGE_BASE = "gcr.io/abacus-labs-dev/hyperlane-agent"
 
 # Pre-built images to use (avoiding image building in Kubernetes)
 # The CLI image needs to be built locally with the deployment scripts
-HYPERLANE_CLI_IMAGE = "hyperlane-cli:latest"
+HYPERLANE_CLI_IMAGE = "hyperlane-cli:v1.0.5"
 # Config generator not needed anymore - we just create artifacts directly
 # AGENT_CONFIG_GEN_IMAGE = "agent-config-gen:latest"  # Removed - not needed
 

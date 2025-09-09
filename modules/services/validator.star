@@ -149,25 +149,39 @@ def build_validator_command():
     Returns:
         Validator command string
     """
-    base = (
-        "/app/validator "
+    # Validate config before starting
+    validate_cmd = """if [ -f /configs/agent-config.json ]; then 
+        echo 'Using agent config with mailbox addresses:'; 
+        grep '"mailbox"' /configs/agent-config.json | head -5;
+        echo 'ISM addresses:';
+        grep '"ism"' /configs/agent-config.json | head -5 || echo 'No ISM addresses found';
+    fi"""
+    
+    # Build complete command using config file directly
+    # The validator will use the ISM from the config to produce proper signatures
+    validator_script = (
+        "while true; do "
+        + "/app/validator "
         + "--originChainName $ORIGIN_CHAIN "
         + "--validator.key $VALIDATOR_KEY "
-        + "--chains.$ORIGIN_CHAIN.connection.url $RPC_URL "
-        + "--checkpointSyncer.type $CHECKPOINT_SYNCER_TYPE "
+        + "--config /configs/agent-config.json "
+        + "--checkpointSyncer.type ${CHECKPOINT_SYNCER_TYPE} "
         + "--checkpointSyncer.path ${CHECKPOINT_SYNCER_PATH:-" + constants.VALIDATOR_CHECKPOINTS_DIR + "} "
         + "--checkpointSyncer.bucket ${S3_BUCKET:-} "
         + "--checkpointSyncer.region ${S3_REGION:-} "
         + "--checkpointSyncer.prefix ${S3_PREFIX:-} "
-        + "--checkpointSyncer.basePath ${CHECKPOINT_BASE_PATH:-}"
+        + "--checkpointSyncer.basePath ${CHECKPOINT_BASE_PATH:-} "
+        # Removed validator.type - let it use the default based on deployed ISM
+        + "; code=$?; echo \"[validator] exited with code $code, restarting in 3s...\"; sleep 3; done"
     )
-    # Keep the validator process alive; auto-restart on unexpected exits
+    
+    # Keep the validator process alive; auto-restart on unexpected exits  
     return (
-        "mkdir -p {} && ".format(constants.VALIDATOR_CHECKPOINTS_DIR)
-        + "bash -lc '"
-        + "while true; do "
-        + base
-        + "; code=$?; echo \"[validator] exited with code $code, restarting in 3s...\"; sleep 3; done'"
+        "mkdir -p {} && {} && bash -c '{}'".format(
+            constants.VALIDATOR_CHECKPOINTS_DIR, 
+            validate_cmd,
+            validator_script
+        )
     )
 
 # ============================================================================

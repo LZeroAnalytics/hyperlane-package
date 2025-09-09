@@ -13,8 +13,9 @@ readonly ERROR_INVALID_CONFIG=2
 readonly ERROR_DEPLOYMENT_FAILED=3
 
 # Logging functions
+# All log functions write to stderr to avoid polluting command substitution
 log_info() {
-    echo "[INFO] $*"
+    echo "[INFO] $*" >&2
 }
 
 log_error() {
@@ -23,7 +24,7 @@ log_error() {
 
 log_debug() {
     if [ "${DEBUG:-0}" = "1" ]; then
-        echo "[DEBUG] $*"
+        echo "[DEBUG] $*" >&2
     fi
 }
 

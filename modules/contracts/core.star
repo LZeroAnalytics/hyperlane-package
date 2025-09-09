@@ -63,15 +63,48 @@ def get_chains_needing_core(chains):
 
 def execute_core_deployment(plan):
     """
-    Execute the core deployment script
+    Execute the core deployment script and wait for completion
     
     Args:
         plan: Kurtosis plan object
     """
-    plan.exec(
+    # Execute the deployment script
+    result = plan.exec(
         service_name = "hyperlane-cli",
         recipe = ExecRecipe(
             command = ["sh", "-lc", constants.DEPLOY_CORE_SCRIPT],
+        ),
+    )
+    
+    # Wait for deployment to complete by checking stamp file
+    plan.exec(
+        service_name = "hyperlane-cli",
+        recipe = ExecRecipe(
+            command = ["sh", "-c", """
+                # Wait for deployment to complete
+                max_wait=60
+                elapsed=0
+                while [ ! -f /configs/.deploy-core ] && [ $elapsed -lt $max_wait ]; do
+                    echo "Waiting for core deployment to complete..."
+                    sleep 2
+                    elapsed=$((elapsed + 2))
+                done
+                
+                if [ -f /configs/.deploy-core ]; then
+                    echo "Core deployment completed successfully"
+                    # Ensure registry directories have the addresses
+                    for chain_dir in /configs/registry/chains/*/; do
+                        if [ -d "$chain_dir" ]; then
+                            chain_name=$(basename "$chain_dir")
+                            if [ -f "$chain_dir/addresses.yaml" ]; then
+                                echo "Found addresses for $chain_name"
+                            fi
+                        fi
+                    done
+                else
+                    echo "WARNING: Core deployment may not have completed properly"
+                fi
+            """],
         ),
     )
 
