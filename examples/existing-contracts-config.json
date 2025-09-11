@@ -1,0 +1,69 @@
+{
+  "chains": [
+    {
+      "name": "sepolia",
+      "rpc_url": "https://eth-sepolia.g.alchemy.com/v2/lC2HDPB2Vs7-p-UPkgKD-VqFulU5elyk",
+      "chain_id": 11155111,
+      "deploy_core": false,
+      "existing_addresses": {
+        "mailbox": "0x39853Ad90a07997715DCf6E95D444Bad7595c148",
+        "merkleTreeHook": "0xD7845b96389F20702542f0F681eA421E27843846",
+        "proxyAdmin": "0xA7340f966CaC5340388Ded369fE6D1FF87e601a8",
+        "validatorAnnounce": "0x2d0482B81d921A9B8cB4Bd31AdE171F6140178E4",
+        "testRecipient": "0x856c0163ED757E6A2b785EcA52473A5179d9DC37"
+      }
+    },
+    {
+      "name": "basesepolia", 
+      "rpc_url": "https://base-sepolia.gateway.tenderly.co",
+      "chain_id": 84532,
+      "deploy_core": false,
+      "existing_addresses": {
+        "mailbox": "0x990b5Ea3717788e39fae513eA47004DFC11cCB1E",
+        "merkleTreeHook": "0xc90e13C2Fd7db59B30da39C2aef088d97bbCa3A0",
+        "proxyAdmin": "0xf2658d3CacB17e0aeCb26e2A64cB5d93527Ed9E3",
+        "validatorAnnounce": "0xBC2E38e92296D63C14a96b5A80FCdb43379D1e66",
+        "testRecipient": "0xc449cEd2fbaf8CfC1b36915D72104Aa2a9D64827"
+      }
+    }
+  ],
+  "agents": {
+    "deployer": {
+      "key": ""
+    },
+    "relayer": {
+      "key": "0x1cdf65ac75f477650040ebe272ddaffb6735dcf55bd651869963ada71944e6db"
+    },
+    "validators": [
+      {
+        "chain": "sepolia",
+        "signing_key": "0x1cdf65ac75f477650040ebe272ddaffb6735dcf55bd651869963ada71944e6db",
+        "checkpoint_syncer": {
+          "type": "local",
+          "params": {
+            "path": "/data/validator-checkpoints"
+          }
+        }
+      },
+      {
+        "chain": "basesepolia",
+        "signing_key": "0x1cdf65ac75f477650040ebe272ddaffb6735dcf55bd651869963ada71944e6db",
+        "checkpoint_syncer": {
+          "type": "local",
+          "params": {
+            "path": "/data/validator-checkpoints"
+          }
+        }
+      }
+    ]
+  },
+  "global": {
+    "ism": {
+      "type": "multisig",
+      "validators": ["0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538"],
+      "threshold": 1
+    },
+    "cli_version": "latest",
+    "agent_image_tag": "agents-v1.4.0"
+  }
+}

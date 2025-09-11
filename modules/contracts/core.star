@@ -25,21 +25,43 @@ def deploy_core_contracts(plan, chains, deployer_key):
         deployer_key: Deployer private key
 
     Returns:
-        True if deployment was needed and succeeded
+        Dictionary of contract addresses for each chain
     """
+    contract_addresses = {}
+    
+    # Process each chain
+    for chain in chains:
+        chain_name = getattr(chain, "name", "")
+        deploy_core = getattr(chain, "deploy_core", False)
+        existing_addresses = safe_get(chain, "existing_addresses", {})
+        
+        if as_bool(deploy_core, False):
+            # Chain needs deployment - addresses will be captured after deployment
+            contract_addresses[chain_name] = {}  # Will be populated after deployment
+        elif existing_addresses:
+            # Use pre-existing addresses from config
+            contract_addresses[chain_name] = existing_addresses
+
     # Check if any chain needs core deployment
     chains_needing_core = get_chains_needing_core(chains)
 
     if len(chains_needing_core) == 0:
         # log_info("No chains require core deployment")
-        return False
+        return contract_addresses
 
     # log_info("Deploying core contracts to {} chains".format(len(chains_needing_core)))
 
     # Execute core deployment
     execute_core_deployment(plan)
+    
+    # Capture deployed addresses from registry
+    deployed_addresses = capture_deployed_addresses(plan, chains_needing_core)
+    
+    # Update contract_addresses with deployed addresses
+    for chain_name, addresses in deployed_addresses.items():
+        contract_addresses[chain_name] = addresses
 
-    return True
+    return contract_addresses
 
 
 # ============================================================================
@@ -145,6 +167,71 @@ def generate_core_config(chains):
             )
 
     return core_config
+
+
+def capture_deployed_addresses(plan, chains):
+    """
+    Capture deployed contract addresses from registry
+    
+    Args:
+        plan: Kurtosis plan object
+        chains: List of chains that were deployed
+    
+    Returns:
+        Dictionary of addresses for each chain
+    """
+    addresses = {}
+    
+    for chain in chains:
+        chain_name = getattr(chain, "name", "")
+        
+        # Read addresses from registry file
+        result = plan.exec(
+            service_name="hyperlane-cli",
+            recipe=ExecRecipe(
+                command=[
+                    "sh", "-c",
+                    "cat /configs/registry/chains/{}/addresses.yaml 2>/dev/null || echo '{}'".format(chain_name)
+                ],
+            ),
+        )
+        
+        # Parse YAML output to dictionary
+        output = result["output"]
+        if output and output != "{}":
+            # Parse the YAML-formatted addresses
+            chain_addresses = parse_yaml_addresses(output)
+            addresses[chain_name] = chain_addresses
+        else:
+            addresses[chain_name] = {}
+    
+    return addresses
+
+
+def parse_yaml_addresses(yaml_output):
+    """
+    Parse YAML addresses output into a dictionary
+    
+    Args:
+        yaml_output: YAML formatted string of addresses
+    
+    Returns:
+        Dictionary of contract addresses
+    """
+    addresses = {}
+    
+    # Split by lines and parse key: value pairs
+    lines = yaml_output.split("\n")
+    for line in lines:
+        if ": " in line and not line.startswith("#"):
+            parts = line.split(": ")
+            if len(parts) == 2:
+                key = parts[0].strip()
+                value = parts[1].strip().strip('"')
+                if key and value:
+                    addresses[key] = value
+    
+    return addresses
 
 
 # ============================================================================

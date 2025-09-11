@@ -92,8 +92,8 @@ def run(plan, args):
 
     plan.print("Phase 4: Deploying contracts")
 
-    # Deploy core contracts if needed
-    core_module.deploy_core_contracts(plan, config.chains, agent_config.deployer_key)
+    # Deploy core contracts if needed and capture addresses
+    contract_addresses = core_module.deploy_core_contracts(plan, config.chains, agent_config.deployer_key)
 
     # Deploy warp routes
     warp_module.deploy_warp_routes(plan, config.warp_routes)
@@ -189,11 +189,26 @@ def run(plan, args):
     # ========================================
 
     plan.print("Hyperlane deployment completed successfully")
+    
+    # Prepare deployment info with validator addresses
+    validator_addresses = []
+    if agent_config.validators:
+        for v in agent_config.validators:
+            # Extract address from key if present
+            validator_addresses.append(getattr(v, "address", getattr(v, "key", "N/A")))
+    
+    deployment_info = struct(
+        deployer_address=agent_config.deployer_key if agent_config.deployer_key else "N/A",
+        relayer_address=agent_config.relayer_key if agent_config.relayer_key else "N/A",
+        validators=validator_addresses,
+    )
 
-    # Return deployment summary
+    # Return comprehensive deployment summary
     return struct(
         chains=len(config.chains),
         validators=len(agent_config.validators),
         warp_routes=len(config.warp_routes),
         test_enabled=test_config.enabled,
+        contracts_addresses=contract_addresses,  # All contract addresses for UI display
+        deployment_info=deployment_info,  # Additional deployment information
     )
