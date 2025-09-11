@@ -14,10 +14,13 @@ constants = get_constants()
 # VALIDATOR SERVICE BUILDER
 # ============================================================================
 
-def build_validator_service(plan, validator, chains, agent_image, configs_dir, checkpoints_dir):
+
+def build_validator_service(
+    plan, validator, chains, agent_image, configs_dir, checkpoints_dir
+):
     """
     Build and deploy a validator service
-    
+
     Args:
         plan: Kurtosis plan object
         validator: Validator configuration
@@ -26,46 +29,58 @@ def build_validator_service(plan, validator, chains, agent_image, configs_dir, c
         configs_dir: Configs directory artifact
     """
     chain_name = getattr(validator, "chain", "")
-    
+
     # Find the chain configuration
     chain = find_item(chains, "name", chain_name)
     if not chain:
         fail("No configuration found for validator chain: {}".format(chain_name))
-    
-    # log_info("Setting up validator for chain: {}".format(chain_name))
-    
+
+    # Get validator key directly
+    validator_key = getattr(validator, "signing_key", "")
+
     # Build environment variables
     env_vars = build_validator_env(validator, chain)
-    
-    # Build command
-    command = build_validator_command()
-    
-    # Add the service to the plan
+
+    # Build simple direct command arguments
+    # No shell interpretation, no string concatenation  
+    # Use /tmp for checkpoints to avoid permission issues with mounted volumes
+    validator_args = [
+        "--config", "/configs/agent-config.json",
+        "--originChainName", chain_name,
+        "--validator.key", validator_key,
+        "--checkpointSyncer.type", "localStorage",
+        "--checkpointSyncer.path", "/tmp/validator-checkpoints"
+    ]
+
+    # Add the service to the plan with direct entrypoint
     plan.add_service(
-        name = "validator-{}".format(chain_name),
-        config = ServiceConfig(
-            image = agent_image,
-            env_vars = env_vars,
-            files = {
+        name="validator-{}".format(chain_name),
+        config=ServiceConfig(
+            image=agent_image,
+            env_vars=env_vars,
+            files={
                 constants.CONFIGS_DIR: configs_dir,
                 constants.VALIDATOR_CHECKPOINTS_DIR: checkpoints_dir,
             },
-            cmd = ["sh", "-lc", command],
+            entrypoint=["/app/validator"],
+            cmd=validator_args,
         ),
     )
+
 
 # ============================================================================
 # ENVIRONMENT CONFIGURATION
 # ============================================================================
 
+
 def build_validator_env(validator, chain):
     """
     Build environment variables for validator service
-    
+
     Args:
         validator: Validator configuration
         chain: Chain configuration
-        
+
     Returns:
         Dictionary of environment variables
     """
@@ -76,38 +91,39 @@ def build_validator_env(validator, chain):
         "CONFIG_FILES": "/configs/agent-config.json",
         "RUST_LOG": "info",
     }
-    
+
     # Add checkpoint syncer configuration
-    syncer_env = build_checkpoint_syncer_env(getattr(validator, "checkpoint_syncer", struct()))
-    
+    syncer_env = build_checkpoint_syncer_env(
+        getattr(validator, "checkpoint_syncer", struct())
+    )
+
     # Merge environments
     for key, value in syncer_env.items():
         base_env[key] = value
-    
+
     return base_env
+
 
 def build_checkpoint_syncer_env(checkpoint_syncer):
     """
     Build environment variables for checkpoint syncer
-    
+
     Args:
         checkpoint_syncer: Checkpoint syncer configuration
-        
+
     Returns:
         Dictionary of syncer-specific environment variables
     """
     syncer_type = getattr(checkpoint_syncer, "type", "")
     params = getattr(checkpoint_syncer, "params", struct())
     env = {}
-    
+
     if syncer_type == constants.CHECKPOINT_SYNCER_LOCAL:
         env["CHECKPOINT_SYNCER_TYPE"] = "local"
         env["CHECKPOINT_SYNCER_PATH"] = safe_get(
-            params, 
-            "path", 
-            constants.VALIDATOR_CHECKPOINTS_DIR
+            params, "path", constants.VALIDATOR_CHECKPOINTS_DIR
         )
-    
+
     elif syncer_type == constants.CHECKPOINT_SYNCER_S3:
         env["CHECKPOINT_SYNCER_TYPE"] = "s3"
         bucket = safe_get(params, "bucket", "")
@@ -121,7 +137,7 @@ def build_checkpoint_syncer_env(checkpoint_syncer):
             env["S3_PREFIX"] = str(prefix)
         if "basePath" in params:
             env["CHECKPOINT_BASE_PATH"] = str(params["basePath"])
-    
+
     elif syncer_type == constants.CHECKPOINT_SYNCER_GCS:
         env["CHECKPOINT_SYNCER_TYPE"] = "gcs"
         if "bucket" in params:
@@ -130,68 +146,28 @@ def build_checkpoint_syncer_env(checkpoint_syncer):
             env["S3_PREFIX"] = str(params["prefix"])
         if "basePath" in params:
             env["CHECKPOINT_BASE_PATH"] = str(params["basePath"])
-    
+
     else:
         # Default to local
         env["CHECKPOINT_SYNCER_TYPE"] = "local"
         env["CHECKPOINT_SYNCER_PATH"] = "/validator-checkpoints"
-    
+
     return env
 
-# ============================================================================
-# COMMAND BUILDING
-# ============================================================================
 
-def build_validator_command():
-    """
-    Build the validator startup command
-    
-    Returns:
-        Validator command string
-    """
-    # Validate config before starting
-    validate_cmd = """if [ -f /configs/agent-config.json ]; then 
-        echo 'Using agent config with mailbox addresses:'; 
-        grep '"mailbox"' /configs/agent-config.json | head -5;
-        echo 'ISM addresses:';
-        grep '"ism"' /configs/agent-config.json | head -5 || echo 'No ISM addresses found';
-    fi"""
-    
-    # Build complete command using config file directly
-    # The validator will use the ISM from the config to produce proper signatures
-    validator_script = (
-        "while true; do "
-        + "/app/validator "
-        + "--originChainName $ORIGIN_CHAIN "
-        + "--validator.key $VALIDATOR_KEY "
-        + "--config /configs/agent-config.json "
-        + "--checkpointSyncer.type ${CHECKPOINT_SYNCER_TYPE} "
-        + "--checkpointSyncer.path ${CHECKPOINT_SYNCER_PATH:-" + constants.VALIDATOR_CHECKPOINTS_DIR + "} "
-        + "--checkpointSyncer.bucket ${S3_BUCKET:-} "
-        + "--checkpointSyncer.region ${S3_REGION:-} "
-        + "--checkpointSyncer.prefix ${S3_PREFIX:-} "
-        + "--checkpointSyncer.basePath ${CHECKPOINT_BASE_PATH:-} "
-        # Removed validator.type - let it use the default based on deployed ISM
-        + "; code=$?; echo \"[validator] exited with code $code, restarting in 3s...\"; sleep 3; done"
-    )
-    
-    # Keep the validator process alive; auto-restart on unexpected exits  
-    return (
-        "mkdir -p {} && {} && bash -c '{}'".format(
-            constants.VALIDATOR_CHECKPOINTS_DIR, 
-            validate_cmd,
-            validator_script
-        )
-    )
+
 
 # ============================================================================
 # BATCH DEPLOYMENT
 # ============================================================================
 
-def deploy_validators(plan, validators, chains, agent_image, configs_dir, checkpoints_dir):
+
+def deploy_validators(
+    plan, validators, chains, agent_image, configs_dir, checkpoints_dir
+):
     """
     Deploy all configured validators
-    
+
     Args:
         plan: Kurtosis plan object
         validators: List of validator configurations
@@ -202,9 +178,9 @@ def deploy_validators(plan, validators, chains, agent_image, configs_dir, checkp
     if len(validators) == 0:
         # log_info("No validators to deploy")
         return
-    
+
     # log_info("Deploying {} validators".format(len(validators)))
-    
+
     for validator in validators:
         build_validator_service(
             plan,
