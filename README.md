@@ -35,6 +35,7 @@ Args schema overview
   - enabled, origin, destination, amount (wei)
 - global:
   - registry_mode: local|public, agent_image_tag, cli_version
+  - ism: { type: multisig|trustedRelayer|aggregation|routing|merkleRoot|messageIdMultisig|pausable, validators: [...], threshold: N }
 
 - See ./config/schema.yaml for full schema
 Agent keys in args.yaml
@@ -98,6 +99,10 @@ Local override example (do not commit)
     registry_mode: local
     agent_image_tag: agents-v1.4.0
     cli_version: latest
+    ism:
+      type: multisig
+      validators: ["0xYOUR_VALIDATOR_ADDRESS"]
+      threshold: 1
 
 Run with:
 - kurtosis clean -a
@@ -147,3 +152,61 @@ RPC verification
 Notes on agent-config.json generation
 - Generated inside the enclave by a one-shot container (agent-config-gen) based on your args file and any deployed addresses in /configs/addresses-*.json.
 - Public registry fallback is disabled; ensure deploy_core=true or provide existing_addresses when deploy_core=false.
+
+## ISM (Interchain Security Module) Configuration
+
+This package now supports comprehensive ISM configuration for cross-chain message security. ISMs determine how messages are verified when delivered to destination chains.
+
+### Quick Start with Multisig ISM
+```json
+{
+  "global": {
+    "ism": {
+      "type": "multisig",
+      "validators": ["0xYourValidatorAddress"],
+      "threshold": 1
+    }
+  }
+}
+```
+
+### Supported ISM Types
+- **multisig**: Requires M-of-N validator signatures (recommended)
+- **trustedRelayer**: Trusts a single relayer (testing only)
+- **aggregation**: Combines multiple ISMs with threshold
+- **routing**: Different ISMs per origin domain
+- **merkleRoot**: Merkle proof based verification
+- **messageIdMultisig**: Message ID based multisig
+- **pausable**: Pausable message verification
+
+For detailed ISM configuration examples and documentation, see:
+- [ISM Configuration Guide](./docs/ISM_CONFIGURATION.md)
+- [Troubleshooting Guide](./docs/TROUBLESHOOTING.md)
+
+## Testing Message Sending
+
+After successful deployment, test cross-chain messaging:
+
+```bash
+# Send a test message
+kurtosis service exec hyperlane hyperlane-cli \
+  "hyperlane send message \
+   --origin sepolia \
+   --destination basesepolia \
+   --body 'Hello Cross-Chain!' \
+   --registry /configs/registry"
+
+# Or use the test script
+node test-message.js
+```
+
+## Troubleshooting
+
+Common issues and solutions:
+
+1. **UTF-8 marshaling errors**: Fixed in current version
+2. **Validator permission issues**: Use `/tmp/validator-checkpoints` path
+3. **ISM configuration not applied**: Ensure ISM is in `global` section
+4. **Contract deployment failures**: Check account balance and RPC connectivity
+
+For detailed troubleshooting, see [docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)
