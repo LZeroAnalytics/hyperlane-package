@@ -3,12 +3,13 @@
 const { ethers } = require('ethers');
 
 async function sendTestMessage() {
-    // Configuration
+    // Configuration - use the deployed contract addresses from recent deployment
     const SEPOLIA_RPC = 'https://eth-sepolia.g.alchemy.com/v2/lC2HDPB2Vs7-p-UPkgKD-VqFulU5elyk';
-    const SEPOLIA_MAILBOX = '0x2cBa90A2bc9FAB54B4d34DFEB55f8224E6Af1635';
+    const SEPOLIA_MAILBOX = '0x990b5Ea3717788e39fae513eA47004DFC11cCB1E';
+    const BASE_SEPOLIA_MAILBOX = '0x309206fD0c6EfCEBc9F1C3cDe32f78b3eD39f163';
+    const BASE_SEPOLIA_TEST_RECIPIENT = '0xc449cEd2fbaf8CfC1b36915D72104Aa2a9D64827';
     const BASE_SEPOLIA_DOMAIN = 84532;
-    const BASE_TEST_RECIPIENT = '0xb10045bfF916eCe811dc66Ca6C0311fD45c48dd4';
-    const DEPLOYER_KEY = '0x89c964f3b1987e037e093b2fa4e5f1e9b6ed2e08c8d0f088c59f92f756c09e09';
+    const DEPLOYER_KEY = '0x1cdf65ac75f477650040ebe272ddaffb6735dcf55bd651869963ada71944e6db';
     
     // Connect to Sepolia
     const provider = new ethers.providers.JsonRpcProvider(SEPOLIA_RPC);
@@ -26,13 +27,13 @@ async function sendTestMessage() {
     // Create contract instance
     const mailbox = new ethers.Contract(SEPOLIA_MAILBOX, mailboxABI, wallet);
     
-    // Prepare message
-    const recipientBytes32 = ethers.utils.hexZeroPad(BASE_TEST_RECIPIENT, 32);
+    // Prepare message - send to Base Sepolia test recipient
+    const recipientBytes32 = ethers.utils.hexZeroPad(BASE_SEPOLIA_TEST_RECIPIENT, 32);
     const messageBody = ethers.utils.toUtf8Bytes("Hello from Sepolia to Base Sepolia!");
     
     console.log('Sending message to Base Sepolia...');
     console.log('Destination domain:', BASE_SEPOLIA_DOMAIN);
-    console.log('Recipient:', BASE_TEST_RECIPIENT);
+    console.log('Recipient contract:', BASE_SEPOLIA_TEST_RECIPIENT);
     
     try {
         // Send the message
