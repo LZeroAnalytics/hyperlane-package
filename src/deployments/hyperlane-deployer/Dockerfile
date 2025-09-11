@@ -33,6 +33,10 @@ COPY scripts/parse_txhash.js /usr/local/bin/parse_txhash.js
 
 # Copy common utilities
 COPY common.sh /usr/local/bin/common.sh
+COPY template_processor.sh /usr/local/bin/template_processor.sh
+
+# Copy configuration templates
+COPY templates /templates
 
 # Make scripts executable
 RUN chmod +x /usr/local/bin/*.sh

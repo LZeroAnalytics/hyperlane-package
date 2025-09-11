@@ -13,6 +13,18 @@ else
     exit 1
 fi
 
+# Source template processor
+if [ -f "/usr/local/bin/template_processor.sh" ]; then
+    source "/usr/local/bin/template_processor.sh"
+elif [ -f "../../utils/shell/template_processor.sh" ]; then
+    # Fallback for local development
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    source "${SCRIPT_DIR}/../../utils/shell/template_processor.sh"
+else
+    echo "ERROR: Could not find template_processor.sh"
+    exit 1
+fi
+
 # ============================================================================
 # MAIN DEPLOYMENT LOGIC
 # ============================================================================
@@ -79,6 +91,7 @@ EOF
     log_debug "Created metadata for ${chain_name}"
 }
 
+
 initialize_core_config() {
     local config_file="$1"
 
@@ -101,7 +114,7 @@ initialize_core_config() {
     fi
     
     # Fallback: Create a valid core config manually
-    log_info "Creating default core config (init command failed or timed out)"
+    log_info "Creating core config with ISM type: ${ISM_TYPE:-trustedRelayer}"
     
     # Get the deployer address from the HYP_KEY
     # Using cast to derive address from private key
@@ -117,30 +130,22 @@ initialize_core_config() {
         log_info "Using default deployer address: $DEPLOYER_ADDRESS"
     fi
     
-    # Create a minimal but valid core config
-    # Using the deployer address for the trustedRelayerIsm
-    cat > "$config_file" <<EOF
-{
-  "owner": "${DEPLOYER_ADDRESS}",
-  "defaultIsm": {
-    "type": "trustedRelayerIsm",
-    "relayer": "${DEPLOYER_ADDRESS}"
-  },
-  "defaultHook": {
-    "type": "merkleTreeHook"
-  },
-  "requiredHook": {
-    "type": "protocolFee",
-    "owner": "${DEPLOYER_ADDRESS}",
-    "beneficiary": "${DEPLOYER_ADDRESS}",
-    "maxProtocolFee": "100000000000000000",
-    "protocolFee": "0"
-  }
-}
-EOF
+    # Set template directory based on environment
+    local template_dir="${TEMPLATE_DIR:-/templates}"
+    if [ ! -d "$template_dir" ]; then
+        # Try relative path for local development
+        template_dir="${SCRIPT_DIR}/../../templates"
+    fi
+    
+    # Generate ISM configuration from template
+    local ism_type="${ISM_TYPE:-trustedRelayer}"
+    local ism_config=$(generate_ism_from_template "$ism_type" "$DEPLOYER_ADDRESS" "${template_dir}/ism")
+    
+    # Generate core configuration from template
+    generate_core_config_from_template "$DEPLOYER_ADDRESS" "$ism_config" "${template_dir}/core-config.json" "$config_file"
     
     if [ -f "$config_file" ]; then
-        log_debug "Created fallback core config with deployer address: $DEPLOYER_ADDRESS"
+        log_debug "Created core config with ISM type: ${ISM_TYPE:-trustedRelayer}"
         return 0
     else
         log_error "Failed to create core config file"
