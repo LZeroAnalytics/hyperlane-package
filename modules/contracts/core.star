@@ -54,13 +54,31 @@ def deploy_core_contracts(plan, chains, deployer_key):
     # Execute core deployment
     execute_core_deployment(plan)
     
+    # Add a small delay to ensure files are written
+    plan.exec(
+        service_name="hyperlane-cli",
+        recipe=ExecRecipe(
+            command=["sh", "-c", "sleep 2"],
+        ),
+    )
+    
     # Capture deployed addresses from registry
     deployed_addresses = capture_deployed_addresses(plan, chains_needing_core)
+    
+    # Verify what we captured
+    for chain in chains_needing_core:
+        chain_name = getattr(chain, "name", "")
+        plan.exec(
+            service_name="hyperlane-cli",
+            recipe=ExecRecipe(
+                command=["sh", "-c", "echo 'Verifying addresses for {}:' && ls -la /configs/registry/chains/{}/addresses.yaml 2>/dev/null || echo 'No addresses file found'".format(chain_name, chain_name)],
+            ),
+        )
     
     # Update contract_addresses with deployed addresses
     for chain_name, addresses in deployed_addresses.items():
         contract_addresses[chain_name] = addresses
-
+    
     return contract_addresses
 
 
@@ -191,7 +209,7 @@ def capture_deployed_addresses(plan, chains):
             recipe=ExecRecipe(
                 command=[
                     "sh", "-c",
-                    "cat /configs/registry/chains/{}/addresses.yaml 2>/dev/null || echo '{}'".format(chain_name)
+                    "cat /configs/registry/chains/{}/addresses.yaml 2>/dev/null || echo '{{}}'".format(chain_name)
                 ],
             ),
         )
@@ -204,7 +222,6 @@ def capture_deployed_addresses(plan, chains):
             addresses[chain_name] = chain_addresses
         else:
             addresses[chain_name] = {}
-    
     return addresses
 
 
