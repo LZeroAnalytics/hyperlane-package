@@ -136,6 +136,7 @@ function readCoreAddresses(chainName) {
     igp: '',
     validatorAnnounce: '',
     ism: '',
+    merkleTreeHook: '',
   };
 
   // Try JSON format in configs directory
@@ -147,6 +148,7 @@ function readCoreAddresses(chainName) {
     addresses.igp = jsonData.interchainGasPaymaster || jsonData.igp || '';
     addresses.validatorAnnounce = jsonData.validatorAnnounce || jsonData.ValidatorAnnounce || '';
     addresses.ism = jsonData.interchainSecurityModule || jsonData.defaultIsm || jsonData.ism || '';
+    addresses.merkleTreeHook = jsonData.merkleTreeHook || jsonData.MerkleTreeHook || '';
     
     if (addresses.mailbox) {
       logger.debug(`Found addresses for ${chainName} in JSON format`);
@@ -164,11 +166,15 @@ function readCoreAddresses(chainName) {
     addresses.validatorAnnounce = yamlData.validatorAnnounce || '';
     // Check for ISM in multiple possible fields
     addresses.ism = yamlData.defaultIsm || yamlData.interchainSecurityModule || yamlData.ism || '';
+    addresses.merkleTreeHook = yamlData.merkleTreeHook || '';
     
     if (addresses.mailbox) {
       logger.debug(`Found addresses for ${chainName} in YAML format`);
       if (addresses.ism) {
         logger.debug(`Found ISM address for ${chainName}: ${addresses.ism}`);
+      }
+      if (addresses.merkleTreeHook) {
+        logger.debug(`Found merkleTreeHook address for ${chainName}: ${addresses.merkleTreeHook}`);
       }
       return addresses;
     }
@@ -196,6 +202,7 @@ async function fetchPublicAddresses(chainName) {
       igp: doc.interchainGasPaymaster || '',
       validatorAnnounce: doc.validatorAnnounce || '',
       ism: doc.interchainSecurityModule || '',
+      merkleTreeHook: doc.merkleTreeHook || '',
     };
   }
   
@@ -216,6 +223,7 @@ async function buildChainConfig(chain) {
     igp: '',
     validatorAnnounce: '',
     ism: '',
+    merkleTreeHook: '',
   };
 
   // Start with existing addresses from input
@@ -224,6 +232,7 @@ async function buildChainConfig(chain) {
   config.igp = existing.igp || '';
   config.validatorAnnounce = existing.validatorAnnounce || '';
   config.ism = existing.ism || '';
+  config.merkleTreeHook = existing.merkleTreeHook || '';
 
   // Override with deployed addresses if available
   const deployed = readCoreAddresses(chain.name);
@@ -231,6 +240,7 @@ async function buildChainConfig(chain) {
   config.igp = deployed.igp || config.igp;
   config.validatorAnnounce = deployed.validatorAnnounce || config.validatorAnnounce;
   config.ism = deployed.ism || config.ism;
+  config.merkleTreeHook = deployed.merkleTreeHook || config.merkleTreeHook;
 
   // Check if we need to fetch from public registry
   const needsPublic = !config.mailbox || !config.igp || !config.validatorAnnounce || !config.ism;
@@ -242,6 +252,7 @@ async function buildChainConfig(chain) {
       config.igp = config.igp || publicAddresses.igp;
       config.validatorAnnounce = config.validatorAnnounce || publicAddresses.validatorAnnounce;
       config.ism = config.ism || publicAddresses.ism;
+      config.merkleTreeHook = config.merkleTreeHook || publicAddresses.merkleTreeHook;
     }
   }
 
@@ -263,10 +274,33 @@ async function buildAgentConfig(args) {
   const chains = args.chains || [];
   const config = { 
     chains: {},
-    defaultism: {}
+    defaultism: {},
+    // Add validator configuration if validators are present
+    validator: {},
+    checkpointSyncer: {},
+    // Add ISM configuration
+    ism: {}
   };
 
   logger.info(`Building agent config for ${chains.length} chains`);
+
+  // Process default ISM configuration if provided
+  if (args.default_ism) {
+    logger.info(`Processing default ISM configuration: ${JSON.stringify(args.default_ism)}`);
+    config.ism = args.default_ism;
+    
+    // Add to defaultism for backwards compatibility
+    if (args.default_ism.type && args.default_ism.validators && args.default_ism.threshold) {
+      for (const chain of chains) {
+        config.defaultism[chain.name] = {
+          type: args.default_ism.type,
+          validators: args.default_ism.validators,
+          threshold: args.default_ism.threshold
+        };
+        logger.debug(`Set default ISM for ${chain.name}: ${JSON.stringify(config.defaultism[chain.name])}`);
+      }
+    }
+  }
 
   // Process each chain
   for (const chain of chains) {
@@ -279,6 +313,48 @@ async function buildAgentConfig(args) {
       config.defaultism[chain.name] = chainConfig.ism;
       logger.debug(`Added ISM for ${chain.name} to defaultism config: ${chainConfig.ism}`);
     }
+  }
+
+  // Add validator configuration if validators are defined
+  if (args.validators && args.validators.length > 0) {
+    // Use the first validator's configuration as default
+    const validator = args.validators[0];
+    config.validator = {
+      type: "hexKey",
+      key: validator.signing_key || process.env.VALIDATOR_KEY || ""
+    };
+
+    // Configure checkpoint syncer
+    const syncerConfig = validator.checkpoint_syncer || {};
+    if (syncerConfig.type === "s3") {
+      config.checkpointSyncer = {
+        type: "s3",
+        bucket: syncerConfig.params?.bucket || "",
+        region: syncerConfig.params?.region || "",
+        prefix: syncerConfig.params?.prefix || ""
+      };
+    } else {
+      // Default to localStorage
+      config.checkpointSyncer = {
+        type: "localStorage",
+        path: syncerConfig.params?.path || "/data/validator-checkpoints"
+      };
+    }
+
+    // Set origin chain name if specified
+    if (validator.chain) {
+      config.originChainName = validator.chain;
+    }
+  } else {
+    // Provide minimal validator config to prevent errors
+    config.validator = {
+      type: "hexKey",
+      key: process.env.VALIDATOR_KEY || ""
+    };
+    config.checkpointSyncer = {
+      type: "localStorage",
+      path: "/data/validator-checkpoints"
+    };
   }
 
   return config;
