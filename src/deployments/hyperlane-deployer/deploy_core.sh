@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Deploy Hyperlane core contracts to specified chains
 
+# Set SCRIPT_DIR first, before any other logic
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Source common utilities - use absolute path in container
 if [ -f "/usr/local/bin/common.sh" ]; then
     source "/usr/local/bin/common.sh"
 elif [ -f "../../utils/shell/common.sh" ]; then
     # Fallback for local development
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${SCRIPT_DIR}/../../utils/shell/common.sh"
 else
     echo "ERROR: Could not find common.sh"
@@ -18,7 +20,6 @@ if [ -f "/usr/local/bin/template_processor.sh" ]; then
     source "/usr/local/bin/template_processor.sh"
 elif [ -f "../../utils/shell/template_processor.sh" ]; then
     # Fallback for local development
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     source "${SCRIPT_DIR}/../../utils/shell/template_processor.sh"
 else
     echo "ERROR: Could not find template_processor.sh"
@@ -222,8 +223,12 @@ extract_ism_address() {
             if [ -n "$ism_addr" ] && [ "$ism_addr" != "" ]; then
                 log_debug "Found ISM address for ${chain_name}: ${ism_addr}"
                 
-                # Append ISM address to addresses.yaml
-                echo "defaultIsm: \"${ism_addr}\"" >> "$addresses_file"
+                # Add ISM address to addresses.yaml
+                if [ -f "$addresses_file" ]; then
+                    echo "defaultIsm: ${ism_addr}" >> "$addresses_file"
+                else
+                    echo "defaultIsm: ${ism_addr}" > "$addresses_file"
+                fi
                 log_info "Added ISM address to ${chain_name} registry"
             else
                 log_debug "Could not extract ISM address for ${chain_name}"
@@ -238,7 +243,7 @@ copy_deployment_artifacts() {
     local addresses_file="$HOME/.hyperlane/chains/${chain_name}/addresses.yaml"
     
     if [ -f "$addresses_file" ]; then
-        cp "$addresses_file" "${target_dir}/addresses.yaml" || true
+        cp "$addresses_file" "$target_dir/"
         log_debug "Copied deployment artifacts for ${chain_name}"
         
         # Extract and add ISM address from mailbox contract

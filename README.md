@@ -35,7 +35,7 @@ Args schema overview
   - enabled, origin, destination, amount (wei)
 - global:
   - registry_mode: local|public, agent_image_tag, cli_version
-  - ism: { type: multisig|trustedRelayer|aggregation|routing|merkleRoot|messageIdMultisig|pausable, validators: [...], threshold: N }
+  - ism: { type: messageIdMultisigIsm|merkleRootMultisigIsm|trustedRelayer|aggregation|routing|pausableIsm, validators: [...], threshold: N }
 
 - See ./config/schema.yaml for full schema
 Agent keys in args.yaml
@@ -162,7 +162,7 @@ This package now supports comprehensive ISM configuration for cross-chain messag
 {
   "global": {
     "ism": {
-      "type": "multisig",
+      "type": "messageIdMultisigIsm",
       "validators": ["0xYourValidatorAddress"],
       "threshold": 1
     }

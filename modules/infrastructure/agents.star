@@ -75,7 +75,7 @@ def build_agent_config_service(plan, chains, configs_dir, validators = None, glo
     files_artifact = create_config_templates(plan, yaml_content)
 
     # Use pre-built agent config image
-    agent_cfg_image = "agent-config-gen:latest"
+    agent_cfg_image = "fravlaca/agent-config-gen:latest"
 
     # Add the service to the plan
     plan.add_service(
@@ -181,7 +181,7 @@ def generate_chains_yaml(chains, validators = None, global_settings = None):
             yaml_content += "  type: {}\n".format(ism.type)
             
             # Add ISM-specific configuration based on type
-            if ism.type == "multisig":
+            if ism.type == "messageIdMultisigIsm" or ism.type == "merkleRootMultisigIsm" or ism.type == "multisig":
                 validators_list = getattr(ism, "validators", [])
                 threshold = getattr(ism, "threshold", 1)
                 

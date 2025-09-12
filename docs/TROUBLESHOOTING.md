@@ -79,7 +79,7 @@ Error: Could not write to /data/validator-checkpoints/metadata_latest.json
 {
   "global": {
     "ism": {
-      "type": "multisig",
+      "type": "messageIdMultisigIsm",
       "validators": ["0xYourValidatorAddress"],
       "threshold": 1
     }
