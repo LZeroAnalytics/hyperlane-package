@@ -17,7 +17,7 @@ The most common ISM type that requires M-of-N validator signatures to verify mes
 {
   "global": {
     "ism": {
-      "type": "multisig",
+      "type": "messageIdMultisigIsm",
       "validators": [
         "0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538",
         "0x742d35Cc6637C0532c2fcDC2A7f2c9b8934acCDe"
@@ -63,7 +63,7 @@ Combines multiple ISMs with a threshold requirement.
       "type": "aggregation",
       "modules": [
         {
-          "type": "multisig",
+          "type": "messageIdMultisigIsm",
           "validators": ["0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538"],
           "threshold": 1
         },
@@ -95,7 +95,7 @@ Routes verification to different ISMs based on the origin domain.
       "owner": "0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538",
       "domains": {
         "11155111": {
-          "type": "multisig",
+          "type": "messageIdMultisigIsm",
           "validators": ["0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538"],
           "threshold": 1
         },
@@ -164,7 +164,7 @@ Allows pausing message verification with designated pauser addresses.
 {
   "global": {
     "ism": {
-      "type": "pausable",
+      "type": "pausableIsm",
       "owner": "0xe1A74e1FCB254CB1e5eb1245eaAe034A4D7dD538",
       "pauser": "0x742d35Cc6637C0532c2fcDC2A7f2c9b8934acCDe"
     }
@@ -224,7 +224,7 @@ Here's a complete configuration file with multisig ISM:
   },
   "global": {
     "ism": {
-      "type": "multisig",
+      "type": "messageIdMultisigIsm",
       "validators": ["0xYOUR_VALIDATOR_ADDRESS"],
       "threshold": 1
     },

@@ -89,7 +89,7 @@ def build_multisig_ism(ism_settings, deployer_address):
     if len(validators) == 0:
         validators = [deployer_address]
 
-    return {"type": "multisig", "validators": validators, "threshold": threshold}
+    return {"type": "messageIdMultisigIsm", "validators": validators, "threshold": threshold}
 
 
 def build_aggregation_ism(ism_settings, deployer_address):
@@ -158,7 +158,7 @@ def build_merkle_root_ism(ism_settings, deployer_address):
     threshold = safe_get(ism_settings, "threshold", 1)
 
     return {
-        "type": "merkleRootMultisig",
+        "type": "merkleRootMultisigIsm",
         "validators": validators,
         "threshold": threshold,
     }
@@ -179,7 +179,7 @@ def build_message_id_multisig_ism(ism_settings, deployer_address):
     threshold = safe_get(ism_settings, "threshold", 1)
 
     return {
-        "type": "messageIdMultisig",
+        "type": "messageIdMultisigIsm",
         "validators": validators,
         "threshold": threshold,
     }
@@ -199,7 +199,7 @@ def build_pausable_ism(ism_settings, deployer_address):
     owner = safe_get(ism_settings, "owner", deployer_address)
     pauser = safe_get(ism_settings, "pauser", owner)
 
-    return {"type": "pausable", "owner": owner, "pauser": pauser}
+    return {"type": "pausableIsm", "owner": owner, "pauser": pauser}
 
 
 # ============================================================================
